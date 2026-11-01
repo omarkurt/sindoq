@@ -9,6 +9,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -122,8 +123,8 @@ func (p *Provider) Create(ctx context.Context, opts *provider.CreateOptions) (pr
 
 	if opts.WorkDir != "" {
 		if err := sb.FS().Mkdir(ctx, opts.WorkDir); err != nil {
-			_ = instance.Stop(context.WithoutCancel(ctx))
-			return nil, fmt.Errorf("create workdir %s: %w", opts.WorkDir, err)
+			err = fmt.Errorf("create workdir %s: %w", opts.WorkDir, err)
+			return nil, errors.Join(err, instance.Stop(context.WithoutCancel(ctx)))
 		}
 	}
 
@@ -151,9 +152,9 @@ func sandboxOptions(opts *provider.CreateOptions, defaultImage string) []msb.San
 	if len(opts.Labels) > 0 {
 		sbOpts = append(sbOpts, msb.WithLabels(opts.Labels))
 	}
-	if opts.Timeout > 0 {
-		sbOpts = append(sbOpts, msb.WithMaxDuration(opts.Timeout))
-	}
+	// opts.Timeout is not mapped to msb.WithMaxDuration: sindoq fills it with the
+	// default execution timeout (30s), which would end the sandbox after 30s.
+	// Executions are bounded per call instead (see execOptions and ExecuteStream).
 	if !opts.InternetAccess {
 		sbOpts = append(sbOpts, msb.WithNetwork(msb.NetworkPolicy.None()))
 	}
@@ -245,7 +246,7 @@ func (i *Instance) checkRunning() error {
 // The code goes into its own directory (codeDir) so concurrent executions in
 // one sandbox cannot overwrite each other's source; the working directory and
 // relative Files still resolve against workDir.
-// ponytail: compiled languages still share the shared runtime table's fixed
+// NOTE: compiled languages still share the shared runtime table's fixed
 // "-o /tmp/main" output, so concurrent C/C++/Rust runs can collide.
 func (i *Instance) prepare(ctx context.Context, code string, opts *executor.ExecutionOptions) (cmd []string, compile *executor.ExecutionResult, codeDir string, err error) {
 	runtimeInfo, ok := langdetect.GetRuntimeInfo(opts.Language)

@@ -347,6 +347,14 @@ func TestMicrosandboxLifecycle(t *testing.T) {
 		t.Fatalf("Execute() after create ctx cancel error = %v", err)
 	}
 
+	// CreateOptions.Timeout carries sindoq's default execution timeout (30s);
+	// the sandbox must keep running past it.
+	short := newTestInstance(t, ctx, p, &provider.CreateOptions{Runtime: "Python", Timeout: 2 * time.Second})
+	time.Sleep(5 * time.Second)
+	if _, err := short.Execute(ctx, "print(1)", &executor.ExecutionOptions{Language: "Python"}); err != nil {
+		t.Errorf("sandbox should outlive CreateOptions.Timeout, Execute() error = %v", err)
+	}
+
 	if err := instance.Stop(ctx); err != nil {
 		t.Fatalf("Stop() error = %v", err)
 	}

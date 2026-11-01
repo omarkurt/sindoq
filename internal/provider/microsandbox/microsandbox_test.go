@@ -84,8 +84,10 @@ func TestSandboxOptions(t *testing.T) {
 	if cfg.Env["A"] != "1" || cfg.Labels["app"] != "sindoq" {
 		t.Errorf("Env = %v, Labels = %v", cfg.Env, cfg.Labels)
 	}
-	if cfg.MaxDuration != 90*time.Second {
-		t.Errorf("MaxDuration = %v", cfg.MaxDuration)
+	// sindoq passes the default execution timeout here, so it must not cap the
+	// sandbox lifetime (a default sandbox would die after 30s).
+	if cfg.MaxDuration != 0 {
+		t.Errorf("Timeout must not become a sandbox lifetime cap, got MaxDuration = %v", cfg.MaxDuration)
 	}
 	if cfg.Network == nil || cfg.Network.DefaultEgress != msb.PolicyActionDeny {
 		t.Errorf("InternetAccess=false should deny egress, got %+v", cfg.Network)
